@@ -1,5 +1,5 @@
 "use client"
-import React from 'react'
+import React, { useState } from 'react'
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
@@ -15,10 +15,12 @@ import { Input } from "@/components/ui/input"
 import { RegisterBody, RegisterBodyType } from '@/schemaValidations/auth.schema'
 import authApiRequest from '@/api.request/auth'
 import { useRouter } from 'next/navigation'
-import { toast } from '@/components/ui/use-toast'
+import { handleErrorApi } from '@/lib/utils'
+import { Loader2 } from 'lucide-react'
 
 
 export default function RegisterForm() {
+    const [loading, setLoading] = useState<Boolean>(false)
     const router = useRouter()
     const form = useForm<RegisterBodyType>({
         resolver: zodResolver(RegisterBody),
@@ -31,31 +33,21 @@ export default function RegisterForm() {
     })
 
     async function onSubmit(values: RegisterBodyType) {
+        if (loading) return
+        setLoading(true)
         try {
             const result = await authApiRequest.register(values)
             //Gọi api next server
-            await authApiRequest.auth({ clientSessionToken: result.payload.data.token })
+            await authApiRequest.auth({ sessionToken: result.payload.data.token })
             router.push('/me')
         } catch (err: any) {
             //Nếu thất bại sẽ reject
-            const errors = err.payload.errors as {
-                field: string,
-                message: string
-            }[]
-
-            if (err.status === 422) {
-                errors.forEach(error => {
-                    return form.setError(error.field as 'email' | 'password', {
-                        type: 'server',
-                        message: error.message
-                    })
-                })
-            } else {
-                toast({
-                    variant: 'destructive',
-                    description: err.payload.message
-                })
-            }
+            handleErrorApi({
+                error: err,
+                setError: form.setError
+            })
+        } finally {
+            setLoading(false)
         }
     }
 
@@ -115,7 +107,10 @@ export default function RegisterForm() {
                         </FormItem>
                     )}
                 />
-                <Button type="submit" className='!mt-8 w-full'>Submit</Button>
+                {!loading ? <Button type="submit" className='!mt-8 w-full'>Submit</Button> : <Button className='!mt-8 w-full' disabled>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Please wait
+                </Button>}
             </form>
         </Form>
     )

@@ -1,5 +1,6 @@
 import envConfig from "@/config";
-import { LoginBodyType, LoginResType } from "@/schemaValidations/auth.schema";
+import { LoginResType } from "@/schemaValidations/auth.schema";
+import { normalize } from "path";
 
 type CustomOptions = Omit<RequestInit, 'method'> & {
     baseUrl?: string
@@ -15,11 +16,11 @@ type EntityErrorPayload = {
     }[]
 }
 
-class HttpError extends Error {
+export class HttpError extends Error {
     status: number;
     payload: {
-        massage: string,
-        [key: string]: string // Ngoài message: string còn có các key, value string khác
+        message: string,
+        [key: string]: any // Ngoài message: string còn có các key, value string khác
     };
     constructor({ status, payload }: { status: number, payload: any }) {
         super('Http Error')
@@ -30,7 +31,15 @@ class HttpError extends Error {
 
 export class EntityError extends HttpError {
     status: 422
-    payload: { [key: string]: string; massage: string; };
+    payload: EntityErrorPayload
+    constructor({ status, payload }: { status: 422, payload: EntityErrorPayload }) {
+        super({ status: ENTITY_ERROR_STATUS, payload: payload })
+        if (status != ENTITY_ERROR_STATUS) {
+            throw new Error("Entity must have status 422")
+        }
+        this.status = status
+        this.payload = payload
+    }
 }
 
 class SessionToken {
@@ -44,7 +53,7 @@ class SessionToken {
         if (typeof window === 'undefined') {
             throw new Error("Cannot set token on server side")
         }
-        this.token = token
+        this.token = token;
     }
 }
 
@@ -52,6 +61,7 @@ export const clientSessionToken = new SessionToken()
 
 const request = async <Response>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, options?: CustomOptions | undefined) => {
     const body = options?.body ? JSON.stringify(options.body) : undefined
+
     const baseHeaders = {
         'Content-Type': 'application/json',
         'Authorization': clientSessionToken.value ? 'Bearer ' + clientSessionToken.value : ''
@@ -76,13 +86,24 @@ const request = async <Response>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url:
     }
 
     if (!res.ok) {
-        throw new HttpError(data)
+        if (res.status === ENTITY_ERROR_STATUS) {
+            throw new EntityError(data as {
+                status: 422,
+                payload: EntityErrorPayload
+            })
+        } else {
+            throw new HttpError(data)
+        }
     }
     //Trả về thành công
-    if (['/auth/login', '/auth/register'].includes(url)) {
-        clientSessionToken.value = (payload as LoginResType).data.token
-    } else if ('/auth/logout'.includes(url)) {
-        clientSessionToken.value = ''
+
+    //Đảm bảo logic chỉ chạy phía client
+    if (typeof window != 'undefined') {
+        if (['/auth/login', '/auth/register'].some(item => item === normalize(url))) {
+            clientSessionToken.value = (payload as LoginResType).data.token
+        } else if ('/auth/logout' === normalize(url)) {
+            clientSessionToken.value = ''
+        }
     }
     return data
 }

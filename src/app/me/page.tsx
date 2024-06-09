@@ -4,8 +4,8 @@ import { cookies } from 'next/headers'
 
 export default async function MeProfile() {
     const cookieStore = cookies()
-    const clientSessionToken = cookieStore.get("clientSessionToken")
-    const result = await accountApiRequest.me(clientSessionToken?.value || '')
+    const sessionToken = cookieStore.get("sessionToken")
+    const result = await accountApiRequest.me(sessionToken?.value || '')
 
     return (
         <div>

@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   //Lấy cookies
   const cookiesStore = cookies();
-  const clientSessionToken = cookiesStore.get("clientSessionToken");
+  const sessionToken = cookiesStore.get("sessionToken");
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
@@ -32,7 +32,7 @@ export default function RootLayout({
           disableTransitionOnChange
         >
           <Header />
-          <AppProvider inititalclientSessionToken={clientSessionToken?.value}>
+          <AppProvider inititalSessionToken={sessionToken?.value}>
             {children}
           </AppProvider>
         </ThemeProvider>

@@ -2,16 +2,16 @@ import http from "@/lib/http"
 import { AccountResType } from "@/schemaValidations/account.schema"
 
 const accountApiRequest = {
-    me: (clientSessionToken: string) => {
-        return http.get<AccountResType>('account/me', {
+    me: (sessionToken: string) => {
+        return http.get<AccountResType>('/account/me', {
             headers: {
-                Authorization: 'Bearer ' + clientSessionToken
+                Authorization: 'Bearer ' + sessionToken
             },
         })
     },
 
     meClient: () => {
-        return http.get<AccountResType>('account/me')
+        return http.get<AccountResType>('/account/me')
     },
 
 }
