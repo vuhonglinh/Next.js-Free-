@@ -17,6 +17,7 @@ import authApiRequest from '@/api.request/auth'
 import { useRouter } from 'next/navigation'
 import { handleErrorApi } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
+import { toast } from '@/components/ui/use-toast'
 
 
 export default function RegisterForm() {
@@ -38,7 +39,13 @@ export default function RegisterForm() {
         try {
             const result = await authApiRequest.register(values)
             //Gọi api next server
-            await authApiRequest.auth({ sessionToken: result.payload.data.token })
+            await authApiRequest.auth({
+                sessionToken: result.payload.data.token,
+                expiresAt: result.payload.data.expiresAt
+            })
+            toast({
+                description: result.payload.message
+            })
             router.push('/me')
         } catch (err: any) {
             //Nếu thất bại sẽ reject

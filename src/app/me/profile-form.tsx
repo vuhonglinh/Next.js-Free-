@@ -3,7 +3,6 @@ import React, { useState } from 'react'
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
-
 import {
     Form,
     FormControl,
@@ -13,40 +12,33 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { LoginBody, LoginBodyType } from '@/schemaValidations/auth.schema'
-import { toast, useToast } from '@/components/ui/use-toast'
-import authApiRequest from '@/api.request/auth'
+import { toast } from '@/components/ui/use-toast'
 import { useRouter } from 'next/navigation'
 import { handleErrorApi } from '@/lib/utils'
 import { Loader2 } from 'lucide-react'
+import { AccountResType, UpdateMeBody, UpdateMeBodyType } from '@/schemaValidations/account.schema'
+import accountApiRequest from '@/api.request/account'
 
+type Profile = AccountResType['data']
 
-
-export default function LoginForm() {
+export default function ProfileForm({ profile }: { profile: Profile }) {
     const [loading, setLoading] = useState<Boolean>(false)
     const router = useRouter()
-    const form = useForm<LoginBodyType>({
-        resolver: zodResolver(LoginBody),
+    const form = useForm<UpdateMeBodyType>({
+        resolver: zodResolver(UpdateMeBody),
         defaultValues: {
-            email: "",
-            password: ""
+            name: profile.name
         }
     })
-    async function onSubmit(values: LoginBodyType) {
+    async function onSubmit(values: UpdateMeBodyType) {
         if (loading) return
         setLoading(true)
         try {
-            const result = await authApiRequest.login(values)
-            //Gọi api next server
-            await authApiRequest.auth({
-                sessionToken: result.payload.data.token,
-                expiresAt: result.payload.data.expiresAt
-            })
+            const result = await accountApiRequest.updateMe(values)
             toast({
                 description: result.payload.message
             })
-            router.push('/')
-            router.refresh()
+            router.refresh()//Lấy dữ liệu mới nhất
         } catch (err: any) {
             handleErrorApi({
                 error: err,
@@ -61,33 +53,27 @@ export default function LoginForm() {
     return (
         <Form {...form} >
             <form noValidate onSubmit={form.handleSubmit(onSubmit)} className="space-y-2 max-w-[600px] flex-shrink-0 w-full">
+
+                <FormLabel>Họ và tên</FormLabel>
+                <FormControl>
+                    <Input type='email' readOnly placeholder="Email" value={profile.email} />
+                </FormControl>
+                <FormMessage />
+
                 <FormField
                     control={form.control}
-                    name="email"
+                    name="name"
                     render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Email</FormLabel>
+                            <FormLabel>Họ và tên</FormLabel>
                             <FormControl>
-                                <Input type='email' placeholder="Email" {...field} />
+                                <Input type='text' placeholder="Họ và tên" {...field} />
                             </FormControl>
                             <FormMessage />
                         </FormItem>
                     )}
                 />
-                <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                        <FormItem>
-                            <FormLabel>Mật khẩu</FormLabel>
-                            <FormControl>
-                                <Input type='password' placeholder="Mật khẩu" {...field} />
-                            </FormControl>
-                            <FormMessage />
-                        </FormItem>
-                    )}
-                />
-                {!loading ? <Button type="submit" className='!mt-8 w-full'>Submit</Button> : <Button className='!mt-8 w-full' disabled>
+                {!loading ? <Button type="submit" className='!mt-8 w-full'>Cập nhật</Button> : <Button className='!mt-8 w-full' disabled>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                     Please wait
                 </Button>}

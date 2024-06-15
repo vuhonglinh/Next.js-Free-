@@ -1,5 +1,6 @@
 import envConfig from "@/config";
 import { LoginResType } from "@/schemaValidations/auth.schema";
+import { redirect } from "next/navigation";
 import { normalize } from "path";
 
 type CustomOptions = Omit<RequestInit, 'method'> & {
@@ -8,6 +9,10 @@ type CustomOptions = Omit<RequestInit, 'method'> & {
 
 
 const ENTITY_ERROR_STATUS = 422
+const AUTHENTICATION_ERROR_STATUS = 401
+
+
+
 type EntityErrorPayload = {
     message: string,
     errors: {
@@ -44,6 +49,7 @@ export class EntityError extends HttpError {
 
 class SessionToken {
     private token = ''
+    private _expiresAt = new Date().toISOString()
     get value() {
         return this.token
     }
@@ -55,24 +61,45 @@ class SessionToken {
         }
         this.token = token;
     }
+
+    get expiresAt() {
+        return this._expiresAt
+    }
+
+    set expiresAt(expiresAt: string) {
+        if (typeof window === 'undefined') {
+            throw new Error("Cannot set token on server side")
+        }
+        this._expiresAt = expiresAt
+    }
 }
 
 export const clientSessionToken = new SessionToken()
+let clientLogoutRequest: Promise<Response> | null = null;
 
 const request = async <Response>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url: string, options?: CustomOptions | undefined) => {
-    const body = options?.body ? JSON.stringify(options.body) : undefined
 
-    const baseHeaders = {
-        'Content-Type': 'application/json',
-        'Authorization': clientSessionToken.value ? 'Bearer ' + clientSessionToken.value : ''
-    }
+    const body = options?.body ? options.body instanceof FormData ? options.body : JSON.stringify(options.body) : undefined
+    const baseHeaders =
+        body instanceof FormData
+            ? {
+                Authorization: clientSessionToken.value
+                    ? `Bearer ${clientSessionToken.value}`
+                    : ''
+            }
+            : {
+                'Content-Type': 'application/json',
+                Authorization: clientSessionToken.value
+                    ? `Bearer ${clientSessionToken.value}`
+                    : ''
+            }
 
     const baseUrl = options?.baseUrl === undefined ? envConfig.NEXT_PUBLIC_API_ENDPOINT : options?.baseUrl
     const fullUrl = url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`
 
     const res = await fetch(fullUrl, {
         ...options,
-        headers: { ...baseHeaders, ...options?.headers },
+        headers: { ...baseHeaders, ...options?.headers } as any,
         body,
         method
     })
@@ -91,6 +118,26 @@ const request = async <Response>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url:
                 status: 422,
                 payload: EntityErrorPayload
             })
+        } else if (res.status === AUTHENTICATION_ERROR_STATUS) {
+            if (typeof window != 'undefined') {
+                if (!clientLogoutRequest) {
+                    clientLogoutRequest = fetch('/api/auth/logout', {
+                        method: 'POST',
+                        body: JSON.stringify({ force: true }),
+                        headers: {
+                            ...baseHeaders,
+                        } as any
+                    })
+                    await clientLogoutRequest
+                    clientSessionToken.value = ''
+                    clientLogoutRequest = null,
+                        clientSessionToken.expiresAt = new Date().toISOString()
+                    location.href = '/login'
+                }
+            } else {
+                const sessionToken = (options?.headers as any).Authorization.split('Bearer ')[1]
+                redirect(`/logout?sessionToken=${sessionToken}`)
+            }
         } else {
             throw new HttpError(data)
         }
@@ -101,8 +148,10 @@ const request = async <Response>(method: 'GET' | 'POST' | 'PUT' | 'DELETE', url:
     if (typeof window != 'undefined') {
         if (['/auth/login', '/auth/register'].some(item => item === normalize(url))) {
             clientSessionToken.value = (payload as LoginResType).data.token
+            clientSessionToken.expiresAt = (payload as LoginResType).data.expiresAt
         } else if ('/auth/logout' === normalize(url)) {
             clientSessionToken.value = ''
+            clientSessionToken.expiresAt = new Date().toISOString()
         }
     }
     return data
@@ -127,8 +176,8 @@ const http = {
     },
 
     //Gọi phương thức DELETE
-    delete<Response>(url: string, body: any, options?: Omit<CustomOptions, 'body'> | undefined) {
-        return request<Response>('DELETE', url, { ...options, body })
+    delete<Response>(url: string) {
+        return request<Response>('DELETE', url)
     },
 }
 

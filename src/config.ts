@@ -2,11 +2,13 @@ import { z } from "zod"
 
 const configSchema = z.object({
     NEXT_PUBLIC_API_ENDPOINT: z.string(),
+    NEXT_PUBLIC_URL: z.string(),
 })
 
 //Hàm safeParse của zod được sử dụng để xác thực process.env theo schema đã định nghĩa. Kết quả trả về của safeParse là một đối tượng có thể có hai dạng:
 export const configProject = configSchema.safeParse({
-    NEXT_PUBLIC_API_ENDPOINT: process.env.NEXT_PUBLIC_API_ENDPOINT
+    NEXT_PUBLIC_API_ENDPOINT: process.env.NEXT_PUBLIC_API_ENDPOINT,
+    NEXT_PUBLIC_URL: process.env.NEXT_PUBLIC_URL,
 })
 
 if (!configProject.success) {
